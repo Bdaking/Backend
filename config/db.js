@@ -1,0 +1,16 @@
+const mongoose = require("mongoose");
+
+const connectDB = async () => {
+  try {
+    // Remove deprecated options - Mongoose 8+ doesn't need these
+    const conn = await mongoose.connect(process.env.MONGO_URI);
+
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    return conn;
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
