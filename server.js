@@ -40,14 +40,14 @@ app.use(express.json());
 // Initialize Database
 connectDb();
 
-// Main Routes
+// Main Routes Unification
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/income", incomeRoutes);
 app.use("/api/v1/expense", expenseRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/ai", aiRoutes);
+app.use("/api/v1/ai-chat", aiChatRoutes); // 💡 Map clearly using your pre-imported variable
 app.use("/api/v1/feedback", feedbackRoutes);
-app.use("/api/ai", require("./routes/aiChatRoutes"));
 
 // Notes Routes
 app.post("/add-note", addNote);
