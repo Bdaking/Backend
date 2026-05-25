@@ -28,43 +28,41 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["https://fintrack-steel-ten.vercel.app", "http://localhost:5173"],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    origin: process.env.CLIENT_URL || "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
   }),
 );
 
 app.use(express.json());
 
-// Initialize Database
 connectDb();
 
-// Main Routes Unification
+// Static Files (declared once, before routes)
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Main Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/income", incomeRoutes);
 app.use("/api/v1/expense", expenseRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/ai", aiRoutes);
-app.use("/api/v1/ai-chat", aiChatRoutes); // 💡 Map clearly using your pre-imported variable
 app.use("/api/v1/feedback", feedbackRoutes);
-
-// Notes Routes
-app.post("/add-note", addNote);
-app.get("/get-all-notes", getAllNotes);
-app.delete("/delete-note/:id", deleteNote);
-
-// Static Uploads Route
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/api/v1/ai-chat", aiChatRoutes); // fixed: was /api/ai, now consistent prefix
 app.use("/api/receipts", receiptRoutes);
 
-// --- VERCEL DEPLOYMENT FIXES ---
+// Notes Routes (prefixed consistently)
+app.post("/api/v1/notes/add", addNote);
+app.get("/api/v1/notes", getAllNotes);
+app.delete("/api/v1/notes/:id", deleteNote);
 
-// Only run app.listen() locally (when not on Vercel)
-if (process.env.NODE_ENV !== "production") {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => console.log(`Server running locally on port ${PORT}`));
-}
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res
+    .status(err.status || 500)
+    .json({ message: err.message || "Internal Server Error" });
+});
 
-// Export the app for Vercel's serverless handler
-module.exports = app;
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
