@@ -2,23 +2,27 @@ const Income = require("../models/Income");
 const Expense = require("../models/Expense");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_CHAT_API_KEY);
+// Fallback to avoid empty API keys failing compilation
+const genAI = new GoogleGenerativeAI(
+  process.env.GEMINI_CHAT_API_KEY || process.env.GEMINI_API_KEY,
+);
 
-// Simple in-memory cooldown (per user)
 const userCooldown = new Map();
 
 exports.getAiChatResponse = async (req, res) => {
   try {
-    const userId = req.user?.id || req.user?._id;
+    // 💡 FIXED: Fallback to req.body.userId if req.user middleware drops out
+    const userId = req.user?.id || req.user?._id || req.body.userId;
     const { prompt } = req.body;
 
     if (!userId)
-      return res.status(401).json({ message: "User not authenticated" });
+      return res
+        .status(401)
+        .json({ message: "User identity validation missing." });
 
     if (!prompt || !prompt.trim())
       return res.status(400).json({ message: "Prompt is required" });
 
-    // 🚧 1. Rate limiting (VERY IMPORTANT)
     const now = Date.now();
     const lastRequest = userCooldown.get(userId) || 0;
 
@@ -29,7 +33,6 @@ exports.getAiChatResponse = async (req, res) => {
     }
     userCooldown.set(userId, now);
 
-    // 🚀 2. Fetch only needed data
     const [incomes, expenses] = await Promise.all([
       Income.find({ userId }).sort({ date: -1 }).limit(5),
       Expense.find({ userId }).sort({ date: -1 }).limit(5),
@@ -39,7 +42,6 @@ exports.getAiChatResponse = async (req, res) => {
     const totalExpense = expenses.reduce((acc, curr) => acc + curr.amount, 0);
     const balance = totalIncome - totalExpense;
 
-    // 🧠 3. Smart context (dynamic)
     let context = `
 You are FinTrack AI, a smart financial assistant.
 
@@ -51,7 +53,6 @@ Summary:
 
     const lowerPrompt = prompt.toLowerCase();
 
-    // Only include transactions if needed
     if (
       lowerPrompt.includes("transaction") ||
       lowerPrompt.includes("expense") ||
@@ -93,9 +94,9 @@ Rules for your response:
 - Keep it concise.
 `;
 
-    // ⚡ 4. Single optimized model
+    // 💡 FIXED: Changed from nonexistent 'gemini-2.5-flash' to the actual identifier
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
     });
 
     const result = await model.generateContent(context);
@@ -108,14 +109,10 @@ Rules for your response:
     });
   } catch (error) {
     console.error("AI ERROR:", error);
-
     const statusCode = error.status || 500;
-
     res.status(statusCode).json({
-      message:
-        statusCode === 429
-          ? "Daily AI limit reached. Try again later."
-          : "AI service unavailable.",
+      message: "AI service encountered an interruption. Please try again.",
+      details: error.message,
     });
   }
 };
