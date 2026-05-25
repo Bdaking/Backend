@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const mongoose = require("mongoose");
 const Income = require("../models/Income");
 const Expense = require("../models/Expense");
 
@@ -21,10 +22,15 @@ exports.getFinancialSuggestions = async (req, res) => {
       });
     }
 
+    // Safe MongoDB Cast Conversion Check
+    const queryId = mongoose.isValidObjectId(userId) 
+      ? new mongoose.Types.ObjectId(userId) 
+      : userId;
+
     // ── 3. Fetch live data from DB ────────────────────────────────────────
     const [incomes, expenses] = await Promise.all([
-      Income.find({ userId }).sort({ date: -1 }).limit(20).lean(),
-      Expense.find({ userId }).sort({ date: -1 }).limit(20).lean(),
+      Income.find({ userId: queryId }).sort({ date: -1 }).limit(20).lean(),
+      Expense.find({ userId: queryId }).sort({ date: -1 }).limit(20).lean(),
     ]);
 
     const totalIncome = incomes.reduce(
@@ -61,9 +67,6 @@ Task: Identify 2 hidden spending trends and 1 specific way to boost savings rati
 Reply in plain text only, max 55 words, no markdown, no bullet symbols.`;
 
     // ── 5. Call Gemini ────────────────────────────────────────────────────
-    //  FIX: use the correct stable model name — "gemini-2.5-flash" does not
-    //  exist; the correct identifiers are "gemini-1.5-flash" (stable) or
-    //  "gemini-2.0-flash" (latest stable as of 2025).
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
@@ -76,10 +79,8 @@ Reply in plain text only, max 55 words, no markdown, no bullet symbols.`;
 
     return res.json({ suggestions: text });
   } catch (error) {
-    // Surface a clear, actionable error message in the logs
     console.error("[AI] getFinancialSuggestions error:", error.message);
 
-    // Gemini quota / rate-limit errors surface as 429 inside the SDK message
     if (
       error.message?.includes("429") ||
       error.message?.toLowerCase().includes("quota")
@@ -89,7 +90,6 @@ Reply in plain text only, max 55 words, no markdown, no bullet symbols.`;
       });
     }
 
-    // Model-not-found errors (what caused the original 500)
     if (
       error.message?.toLowerCase().includes("not found") ||
       error.message?.toLowerCase().includes("invalid model")
