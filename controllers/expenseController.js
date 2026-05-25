@@ -9,7 +9,6 @@ exports.addExpense = async (req, res) => {
   try {
     const { icon, category, amount, date } = req.body;
 
-    // Validation
     if (!category || amount == null || !date) {
       return res.status(400).json({ message: "All fields are required" });
     }
@@ -28,7 +27,6 @@ exports.addExpense = async (req, res) => {
     });
 
     await newExpense.save();
-
     res.status(201).json(newExpense);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -50,7 +48,13 @@ exports.getAllExpense = async (req, res) => {
 // Delete Expense Source
 exports.deleteExpense = async (req, res) => {
   try {
-    await Expense.findByIdAndDelete(req.params.id);
+    const userId = req.user.id;
+    const expense = await Expense.findOneAndDelete({
+      _id: req.params.id,
+      userId,
+    });
+    if (!expense)
+      return res.status(404).json({ message: "Not found or unauthorized" });
     res.json({ message: "Expense deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -64,19 +68,41 @@ exports.downloadExpenseExcel = async (req, res) => {
     const expense = await Expense.find({ userId }).sort({ date: -1 });
 
     const data = expense.map((item) => ({
-      Category: item.category,
-      Amount: item.amount,
-      Date: item.date.toLocaleDateString(), // Better formatting for the receiver
+      Category: item.category ?? "Unknown",
+      Amount: item.amount ?? 0,
+      Date: item.date ? item.date.toLocaleDateString("en-US") : "N/A",
     }));
+
+    // Add a blank row then a Total row at the bottom
+    const totalAmount = data.reduce((sum, row) => sum + row.Amount, 0);
+    data.push({ Category: "", Amount: "", Date: "" });
+    data.push({ Category: "TOTAL", Amount: totalAmount, Date: "" });
 
     const wb = xlsx.utils.book_new();
     const ws = xlsx.utils.json_to_sheet(data);
+
+    // Bold the Total row cells
+    const totalRowIndex = data.length;
+    const totalAmountCell = `B${totalRowIndex + 1}`; // +1 for header row
+    const totalLabelCell = `A${totalRowIndex + 1}`;
+
+    if (!ws[totalLabelCell]) ws[totalLabelCell] = {};
+    ws[totalLabelCell].s = { font: { bold: true } };
+
+    if (!ws[totalAmountCell]) ws[totalAmountCell] = {};
+    ws[totalAmountCell].s = { font: { bold: true } };
+
+    // Set column widths for readability
+    ws["!cols"] = [
+      { wch: 20 }, // Category
+      { wch: 12 }, // Amount
+      { wch: 14 }, // Date
+    ];
+
     xlsx.utils.book_append_sheet(wb, ws, "Expenses");
 
-    // FIX: Generate a Buffer instead of writing to disk
     const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
 
-    // Set headers to define the payload type
     res.setHeader(
       "Content-Disposition",
       'attachment; filename="expense_details.xlsx"',
@@ -86,7 +112,6 @@ exports.downloadExpenseExcel = async (req, res) => {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
 
-    // Transmit the buffer directly
     res.send(buffer);
   } catch (error) {
     console.error("Download path error:", error);
