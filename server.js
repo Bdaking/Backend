@@ -12,7 +12,6 @@ const authRoutes = require("./routes/authRoutes");
 const incomeRoutes = require("./routes/incomeRoutes");
 const expenseRoutes = require("./routes/expenseRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
-const aiRoutes = require("./routes/aiRoutes");
 const feedbackRoutes = require("./routes/feedbackRoutes");
 const aiChatRoutes = require("./routes/aiChatRoutes");
 const receiptRoutes = require("./routes/receiptRoutes");
@@ -46,7 +45,6 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/income", incomeRoutes);
 app.use("/api/v1/expense", expenseRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
-app.use("/api/v1/ai", aiRoutes);
 app.use("/api/v1/feedback", feedbackRoutes);
 app.use("/api/v1/ai-chat", aiChatRoutes); // fixed: was /api/ai, now consistent prefix
 app.use("/api/receipts", receiptRoutes);
